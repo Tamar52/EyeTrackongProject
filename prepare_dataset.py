@@ -2,6 +2,7 @@ import shutil, os, argparse, json, re, sys
 import numpy as np
 import scipy.io as sio
 from PIL import Image
+import pandas as pd
 
 
 """
@@ -91,11 +92,13 @@ def main():
 
     # Output structure
     meta = {
-        'labelRecNum': [],
-        'frameIndex': [],
-        'labelDotXCam': [],
-        'labelDotYCam': [],
-        'labelFaceGrid': [],
+        'recording_id': [],
+        'frame_id': [],
+        'label_dot_x_cam': [],
+        'label_dot_y_cam': [],
+        'label_face_grid': [],
+        'device_name': [],
+        'dataset': []
     }
 
     for i, recording in enumerate(recordings):
@@ -122,9 +125,9 @@ def main():
         frames = read_json(os.path.join(rec_dir, 'frames.json'))
         if frames is None:
             continue
-        # info = readJson(os.path.join(recDir, 'info.json'))
-        # if info is None:
-        #     continue
+        info = read_json(os.path.join(rec_dir, 'info.json'))
+        if info is None:
+            continue
         # screen = readJson(os.path.join(recDir, 'screen.json'))
         # if screen is None:
         #     continue
@@ -176,35 +179,40 @@ def main():
             Image.fromarray(img_eye_right).save(os.path.join(right_eye_path, '%05d.jpg' % frame), quality=95)
 
             # Collect metadata
-            meta['labelRecNum'] += [int(recording)]
-            meta['frameIndex'] += [frame]
-            meta['labelDotXCam'] += [dot_info['XCam'][j]]
-            meta['labelDotYCam'] += [dot_info['YCam'][j]]
-            meta['labelFaceGrid'] += [face_grid_bbox[j, :]]
+            meta['recording_id'] += [int(recording)]
+            meta['frame_id'] += [frame]
+            meta['label_dot_x_cam'] += [dot_info['XCam'][j]]
+            meta['label_dot_y_cam'] += [dot_info['YCam'][j]]
+            meta['label_face_grid'] += [face_grid_bbox[j, :]]
+            meta['device_name'] += [info['DeviceName']]
+            meta['dataset'] += [info['Dataset']]
+    meta_panda = pd.DataFrame.from_dict(meta)
+    meta_panda.to_csv(os.path.join(args.output_path, 'metadata.csv'))
+
 
     # Integrate
-    meta['labelRecNum'] = np.stack(meta['labelRecNum'], axis=0).astype(np.int16)
-    meta['frameIndex'] = np.stack(meta['frameIndex'], axis=0).astype(np.int32)
-    meta['labelDotXCam'] = np.stack(meta['labelDotXCam'], axis=0)
-    meta['labelDotYCam'] = np.stack(meta['labelDotYCam'], axis=0)
-    meta['labelFaceGrid'] = np.stack(meta['labelFaceGrid'], axis=0).astype(np.uint8)
+    meta['recording_id'] = np.stack(meta['recording_id'], axis=0).astype(np.int16)
+    meta['frame_id'] = np.stack(meta['frame_id'], axis=0).astype(np.int32)
+    meta['label_dot_x_cam'] = np.stack(meta['label_dot_x_cam'], axis=0)
+    meta['label_dot_y_cam'] = np.stack(meta['label_dot_y_cam'], axis=0)
+    meta['label_face_grid'] = np.stack(meta['label_face_grid'], axis=0).astype(np.uint8)
 
     # Load reference metadata
     print('Will compare to the reference GitHub dataset metadata.mat...')
     reference = sio.loadmat('./reference_metadata.mat', struct_as_record=False)
     reference['labelRecNum'] = reference['labelRecNum'].flatten()
-    reference['frameIndex'] = reference['frameIndex'].flatten()
-    reference['labelDotXCam'] = reference['labelDotXCam'].flatten()
-    reference['labelDotYCam'] = reference['labelDotYCam'].flatten()
+    reference['frame_id'] = reference['frameIndex'].flatten()
+    reference['label_dot_x_cam'] = reference['labelDotXCam'].flatten()
+    reference['label_dot_y_cam'] = reference['labelDotYCam'].flatten()
     reference['labelTrain'] = reference['labelTrain'].flatten()
     reference['labelVal'] = reference['labelVal'].flatten()
     reference['labelTest'] = reference['labelTest'].flatten()
 
     # Find mapping
-    m_key = np.array(['%05d_%05d' % (rec, frame) for rec, frame in zip(meta['labelRecNum'], meta['frameIndex'])],
+    m_key = np.array(['%05d_%05d' % (rec, frame) for rec, frame in zip(meta['recording_id'], meta['frame_id'])],
                     np.object)
     r_key = np.array(
-        ['%05d_%05d' % (rec, frame) for rec, frame in zip(reference['labelRecNum'], reference['frameIndex'])],
+        ['%05d_%05d' % (rec, frame) for rec, frame in zip(reference['labelRecNum'], reference['frame_id'])],
         np.object)
     m_index = {k: i for i, k in enumerate(m_key)}
     r_index = {k: i for i, k in enumerate(r_key)}
@@ -223,26 +231,21 @@ def main():
             # break
 
     # Copy split from reference
-    meta['labelTrain'] = np.zeros((len(meta['labelRecNum'], )), np.bool)
-    meta['labelVal'] = np.ones((len(meta['labelRecNum'], )), np.bool)  # default choice
-    meta['labelTest'] = np.zeros((len(meta['labelRecNum'], )), np.bool)
+    meta['labelTrain'] = np.zeros((len(meta['recording_id'], )), np.bool)
+    meta['labelVal'] = np.ones((len(meta['recording_id'], )), np.bool)  # default choice
+    meta['labelTest'] = np.zeros((len(meta['recording_id'], )), np.bool)
 
     valid_mapping_mask = m_t_o_r >= 0
     meta['labelTrain'][valid_mapping_mask] = reference['labelTrain'][m_t_o_r[valid_mapping_mask]]
     meta['labelVal'][valid_mapping_mask] = reference['labelVal'][m_t_o_r[valid_mapping_mask]]
     meta['labelTest'][valid_mapping_mask] = reference['labelTest'][m_t_o_r[valid_mapping_mask]]
 
-    # Write out metadata
-    meta_file = os.path.join(args.output_path, 'metadata.mat')
-    print(f'Writing out the metadata.mat to {meta_file}...' )
-    sio.savemat(meta_file, meta)
-
     # Statistics
     n_missing = np.sum(r_t_o_m < 0)
     n_extra = np.sum(m_t_o_r < 0)
     total_match = len(m_key) == len(r_key) and np.all(np.equal(m_key, r_key))
     print('======================\n\tSummary\n======================')
-    print('Total added %d frames from %d recordings.' % (len(meta['frameIndex']), len(np.unique(meta['labelRecNum']))))
+    print('Total added %d frames from %d recordings.' % (len(meta['frame_id']), len(np.unique(meta['recording_id']))))
     if n_missing > 0:
         print(
             f'There are {n_missing} frames missing in the new dataset. This may affect the results. Check the log to see which files are missing.')
