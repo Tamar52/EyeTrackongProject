@@ -1,8 +1,8 @@
 import shutil, os, argparse, json, re, sys
 import numpy as np
-import scipy.io as sio
 from PIL import Image
 import pandas as pd
+from eye_tracking_features import EyeTrackingFeatures
 
 
 """
@@ -92,13 +92,17 @@ def main():
 
     # Output structure
     meta = {
-        'recording_id': [],
-        'frame_id': [],
-        'label_dot_x_cam': [],
-        'label_dot_y_cam': [],
-        'label_face_grid': [],
-        'device_name': [],
-        'dataset': []
+        EyeTrackingFeatures.RECORDING_ID.value: [],
+        EyeTrackingFeatures.FRAME_ID.value: [],
+        EyeTrackingFeatures.LABEL_DOT_X_CAM.value: [],
+        EyeTrackingFeatures.LABEL_DOT_Y_CAM.value: [],
+        EyeTrackingFeatures.LABEL_FACE_GRID.value: [],
+        EyeTrackingFeatures.DEVICE_NAME.value: [],
+        EyeTrackingFeatures.DATASET.value: [],
+        EyeTrackingFeatures.FACE_GRID_FRAME_PATH.value: [],
+        EyeTrackingFeatures.RIGHT_EYE_FRAME_PATH.value: [],
+        EyeTrackingFeatures.LEFT_EYE_FRAME_PATH.value: [],
+
     }
 
     for i, recording in enumerate(recordings):
@@ -179,88 +183,19 @@ def main():
             Image.fromarray(img_eye_right).save(os.path.join(right_eye_path, '%05d.jpg' % frame), quality=95)
 
             # Collect metadata
-            meta['recording_id'] += [int(recording)]
-            meta['frame_id'] += [frame]
-            meta['label_dot_x_cam'] += [dot_info['XCam'][j]]
-            meta['label_dot_y_cam'] += [dot_info['YCam'][j]]
-            meta['label_face_grid'] += [face_grid_bbox[j, :]]
-            meta['device_name'] += [info['DeviceName']]
-            meta['dataset'] += [info['Dataset']]
+            meta[EyeTrackingFeatures.RECORDING_ID.value] += [str(recording)]
+            meta[EyeTrackingFeatures.FRAME_ID.value] += [str(frame)]
+            meta[EyeTrackingFeatures.LABEL_DOT_X_CAM.value] += [str(dot_info['XCam'][j])]
+            meta[EyeTrackingFeatures.LABEL_DOT_Y_CAM.value] += [str(dot_info['YCam'][j])]
+            meta[EyeTrackingFeatures.LABEL_FACE_GRID.value] += [str(face_grid_bbox[j, :])]
+            meta[EyeTrackingFeatures.DEVICE_NAME.value] += [info['DeviceName']]
+            meta[EyeTrackingFeatures.DATASET.value] += [info['Dataset']]
+            meta[EyeTrackingFeatures.FACE_GRID_FRAME_PATH.value] += [os.path.join(face_path, '%05d.jpg' % frame)]
+            meta[EyeTrackingFeatures.RIGHT_EYE_FRAME_PATH.value] += [os.path.join(right_eye_path, '%05d.jpg' % frame)]
+            meta[EyeTrackingFeatures.LEFT_EYE_FRAME_PATH.value] += [os.path.join(left_eye_path, '%05d.jpg' % frame)]
+
     meta_panda = pd.DataFrame.from_dict(meta)
     meta_panda.to_csv(os.path.join(args.output_path, 'metadata.csv'))
-
-
-    # Integrate
-    meta['recording_id'] = np.stack(meta['recording_id'], axis=0).astype(np.int16)
-    meta['frame_id'] = np.stack(meta['frame_id'], axis=0).astype(np.int32)
-    meta['label_dot_x_cam'] = np.stack(meta['label_dot_x_cam'], axis=0)
-    meta['label_dot_y_cam'] = np.stack(meta['label_dot_y_cam'], axis=0)
-    meta['label_face_grid'] = np.stack(meta['label_face_grid'], axis=0).astype(np.uint8)
-
-    # Load reference metadata
-    print('Will compare to the reference GitHub dataset metadata.mat...')
-    reference = sio.loadmat('./reference_metadata.mat', struct_as_record=False)
-    reference['labelRecNum'] = reference['labelRecNum'].flatten()
-    reference['frame_id'] = reference['frameIndex'].flatten()
-    reference['label_dot_x_cam'] = reference['labelDotXCam'].flatten()
-    reference['label_dot_y_cam'] = reference['labelDotYCam'].flatten()
-    reference['labelTrain'] = reference['labelTrain'].flatten()
-    reference['labelVal'] = reference['labelVal'].flatten()
-    reference['labelTest'] = reference['labelTest'].flatten()
-
-    # Find mapping
-    m_key = np.array(['%05d_%05d' % (rec, frame) for rec, frame in zip(meta['recording_id'], meta['frame_id'])],
-                    np.object)
-    r_key = np.array(
-        ['%05d_%05d' % (rec, frame) for rec, frame in zip(reference['labelRecNum'], reference['frame_id'])],
-        np.object)
-    m_index = {k: i for i, k in enumerate(m_key)}
-    r_index = {k: i for i, k in enumerate(r_key)}
-    m_t_o_r = np.zeros((len(m_key, )), int) - 1
-    for i, k in enumerate(m_key):
-        if k in r_index:
-            m_t_o_r[i] = r_index[k]
-        else:
-            log_error('Did not find rec_frame %s from the new dataset in the reference dataset!' % k)
-    r_t_o_m = np.zeros((len(r_key, )), int) - 1
-    for i, k in enumerate(r_key):
-        if k in m_index:
-            r_t_o_m[i] = m_index[k]
-        else:
-            log_error(f'Did not find rec_frame {k} from the reference dataset in the new dataset!', critical=False)
-            # break
-
-    # Copy split from reference
-    meta['labelTrain'] = np.zeros((len(meta['recording_id'], )), np.bool)
-    meta['labelVal'] = np.ones((len(meta['recording_id'], )), np.bool)  # default choice
-    meta['labelTest'] = np.zeros((len(meta['recording_id'], )), np.bool)
-
-    valid_mapping_mask = m_t_o_r >= 0
-    meta['labelTrain'][valid_mapping_mask] = reference['labelTrain'][m_t_o_r[valid_mapping_mask]]
-    meta['labelVal'][valid_mapping_mask] = reference['labelVal'][m_t_o_r[valid_mapping_mask]]
-    meta['labelTest'][valid_mapping_mask] = reference['labelTest'][m_t_o_r[valid_mapping_mask]]
-
-    # Statistics
-    n_missing = np.sum(r_t_o_m < 0)
-    n_extra = np.sum(m_t_o_r < 0)
-    total_match = len(m_key) == len(r_key) and np.all(np.equal(m_key, r_key))
-    print('======================\n\tSummary\n======================')
-    print('Total added %d frames from %d recordings.' % (len(meta['frame_id']), len(np.unique(meta['recording_id']))))
-    if n_missing > 0:
-        print(
-            f'There are {n_missing} frames missing in the new dataset. This may affect the results. Check the log to see which files are missing.')
-    else:
-        print('There are no missing files.')
-    if n_extra > 0:
-        print(
-            f'There are {n_extra} extra frames in the new dataset. This is generally ok as they were marked for validation split only.')
-    else:
-        print('There are no extra files that were not in the reference dataset.')
-    if total_match:
-        print('The new metadata.mat is an exact match to the reference from GitHub (including ordering)')
-
-    # import pdb; pdb.set_trace()
-    input("Press Enter to continue...")
 
 
 if __name__ == "__main__":
