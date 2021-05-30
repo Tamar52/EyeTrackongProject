@@ -45,7 +45,6 @@ class EyeTrackerData:
         for item in dataset.as_numpy_iterator():
             item = dataset.map(map_func=self.load_images(item))
 
-
 if __name__ == "__main__":
     eye_tracker_data = EyeTrackerData(r'C:\Users\Tamar\Desktop\hw\project\prepared_data')
     eye_tracker_data.preprocess_data()
