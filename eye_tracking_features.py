@@ -18,6 +18,8 @@ class EyeTrackingFeatures(enum.Enum):
     FACE_GRID_FRAME = 'face_grid_frame'
     RIGHT_EYE_FRAME = 'right_eye_frame'
     LEFT_EYE_FRAME = 'left_eye_frame'
+    RELU = 'relu'
+    LINEAR = 'linear'
 
     def __str__(self) -> str:
         return self.value
