@@ -99,7 +99,7 @@ def main():
         EyeTrackingFeatures.LABEL_FACE_GRID.value: [],
         EyeTrackingFeatures.DEVICE_NAME.value: [],
         EyeTrackingFeatures.DATASET.value: [],
-        EyeTrackingFeatures.FACE_GRID_FRAME_PATH.value: [],
+        EyeTrackingFeatures.FACE_FRAME_PATH.value: [],
         EyeTrackingFeatures.RIGHT_EYE_FRAME_PATH.value: [],
         EyeTrackingFeatures.LEFT_EYE_FRAME_PATH.value: [],
 
@@ -190,7 +190,7 @@ def main():
             meta[EyeTrackingFeatures.LABEL_FACE_GRID.value] += [str(face_grid_bbox[j, :])]
             meta[EyeTrackingFeatures.DEVICE_NAME.value] += [info['DeviceName']]
             meta[EyeTrackingFeatures.DATASET.value] += [info['Dataset']]
-            meta[EyeTrackingFeatures.FACE_GRID_FRAME_PATH.value] += [os.path.join(face_path, '%05d.jpg' % frame)]
+            meta[EyeTrackingFeatures.FACE_FRAME_PATH.value] += [os.path.join(face_path, '%05d.jpg' % frame)]
             meta[EyeTrackingFeatures.RIGHT_EYE_FRAME_PATH.value] += [os.path.join(right_eye_path, '%05d.jpg' % frame)]
             meta[EyeTrackingFeatures.LEFT_EYE_FRAME_PATH.value] += [os.path.join(left_eye_path, '%05d.jpg' % frame)]
 
