@@ -187,7 +187,7 @@ def main():
             meta[EyeTrackingFeatures.FRAME_ID.value] += [str(frame)]
             meta[EyeTrackingFeatures.LABEL_DOT_X_CAM.value] += [str(dot_info['XCam'][j])]
             meta[EyeTrackingFeatures.LABEL_DOT_Y_CAM.value] += [str(dot_info['YCam'][j])]
-            meta[EyeTrackingFeatures.LABEL_FACE_GRID.value] += [str(face_grid_bbox[j, :])]
+            meta[EyeTrackingFeatures.LABEL_FACE_GRID.value] += [str(face_grid_bbox[j, :]).replace("[ ", "[").replace("  ", " ").replace(" ", ",")]
             meta[EyeTrackingFeatures.DEVICE_NAME.value] += [info['DeviceName']]
             meta[EyeTrackingFeatures.DATASET.value] += [info['Dataset']]
             meta[EyeTrackingFeatures.FACE_FRAME_PATH.value] += [os.path.join(face_path, '%05d.jpg' % frame)]
