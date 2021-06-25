@@ -63,29 +63,25 @@ class EyeTrackerModel(tf.keras.Model):
             [Conv2D(96, (11, 11), activation=EyeTrackingFeatures.RELU.value),
              BatchNormalization(),
              MaxPool2D(pool_size=(2, 2)),
-             BatchNormalization(),
              Conv2D(256, (5, 5), activation=EyeTrackingFeatures.RELU.value),
              BatchNormalization(),
              MaxPool2D(pool_size=(2, 2)),
-             BatchNormalization(),
              Conv2D(384, (3, 3), activation=EyeTrackingFeatures.RELU.value),
              BatchNormalization(),
-             MaxPool2D(pool_size=(2, 2)),
+             Conv2D(64, (1, 1), activation=EyeTrackingFeatures.RELU.value),
              BatchNormalization()])
 
         self._face_model = tf.keras.Sequential(
             [Conv2D(96, (11, 11), activation=EyeTrackingFeatures.RELU.value),
              BatchNormalization(),
              MaxPool2D(pool_size=(2, 2)),
-             BatchNormalization(),
              Conv2D(256, (5, 5), activation=EyeTrackingFeatures.RELU.value),
              BatchNormalization(),
              MaxPool2D(pool_size=(2, 2)),
-             BatchNormalization(),
              Conv2D(384, (3, 3), activation=EyeTrackingFeatures.RELU.value),
              BatchNormalization(),
-             MaxPool2D(pool_size=(2, 2)),
-             BatchNormalization(), ])
+             Conv2D(64, (1, 1), activation=EyeTrackingFeatures.RELU.value),
+             BatchNormalization()])
 
     def get_eye_tracker_model(self) -> tf.keras.models:
         # right eye model
@@ -100,10 +96,9 @@ class EyeTrackerModel(tf.keras.Model):
         face_image = self._face_input / 127.5 - 1
         face_features = self._face_model(face_image)
 
-        # dense layers for eyes
+        # eye features
         eye_features = Concatenate()([left_eye_features, right_eye_features])
         eye_features = Flatten()(eye_features)
-        eye_features = BatchNormalization()(eye_features)
         fc_e1 = Dense(128, activation=EyeTrackingFeatures.RELU.value, kernel_regularizer='l2')(eye_features)
         fc_e1 = BatchNormalization()(fc_e1)
 
@@ -130,9 +125,7 @@ class EyeTrackerModel(tf.keras.Model):
         fc1 = Dense(128, activation=EyeTrackingFeatures.RELU.value, kernel_regularizer=tf.keras.regularizers.l2(l=0.1))(
             h)
         fc1 = BatchNormalization()(fc1)
-        fc2 = Dense(2, activation=EyeTrackingFeatures.LINEAR.value, kernel_regularizer=tf.keras.regularizers.l2(l=0.1))(
-            fc1)
-        fc2 = BatchNormalization()(fc2)
+        fc2 = Dense(2, kernel_regularizer=tf.keras.regularizers.l2(l=0.1))(fc1)
 
         # final model
         final_model = Model(
