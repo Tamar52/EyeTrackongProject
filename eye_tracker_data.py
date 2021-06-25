@@ -65,7 +65,7 @@ class EyeTrackerData:
 
 
 if __name__ == "__main__":
-    eye_tracker_data = EyeTrackerData(r'C:\Users\Tamar\Desktop\hw\project\prepared_data')
+    eye_tracker_data = EyeTrackerData(r'/mnt/2ef93ccf-c66e-4beb-95ba-24011e8fee18/TAMAR/prepared_data')
     dataset = eye_tracker_data.preprocess_data('train')
     import cv2
     for sample in dataset.as_numpy_iterator():

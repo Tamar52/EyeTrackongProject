@@ -7,11 +7,10 @@ import tensorflow as tf
 from tensorflow.keras.layers import Input, Conv2D, Dense, Flatten, MaxPool2D, Concatenate
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Layer
-from tensorflow.python.keras.engine.keras_tensor import KerasTensor
 from tensorflow.keras.layers import BatchNormalization
 
-from EyeTrackongProject.eye_tracker_data import EyeTrackerData
-from EyeTrackongProject.eye_tracking_features import EyeTrackingFeatures
+from eye_tracker_data import EyeTrackerData
+from eye_tracking_features import EyeTrackingFeatures
 import numpy as np
 from tensorflow.keras.optimizers import SGD, Adam
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard
@@ -60,7 +59,7 @@ class EyeTrackerModel(tf.keras.Model):
                                       name=EyeTrackingFeatures.FACE_GRID.value)  # Input layout is BHWC # TODO: get from args
         # TODO: add l2 regularization - READ about L2 regularization
         self._eye_model = tf.keras.Sequential(
-            [Conv2D(96, (11, 11), activation=EyeTrackingFeatures.RELU.value),
+            [Conv2D(96, (11, 11), strides=(4, 4), activation=EyeTrackingFeatures.RELU.value),
              BatchNormalization(),
              MaxPool2D(pool_size=(2, 2)),
              Conv2D(256, (5, 5), activation=EyeTrackingFeatures.RELU.value),
@@ -72,7 +71,7 @@ class EyeTrackerModel(tf.keras.Model):
              BatchNormalization()])
 
         self._face_model = tf.keras.Sequential(
-            [Conv2D(96, (11, 11), activation=EyeTrackingFeatures.RELU.value),
+            [Conv2D(96, (11, 11), strides=(4,4), activation=EyeTrackingFeatures.RELU.value),
              BatchNormalization(),
              MaxPool2D(pool_size=(2, 2)),
              Conv2D(256, (5, 5), activation=EyeTrackingFeatures.RELU.value),
@@ -135,7 +134,7 @@ class EyeTrackerModel(tf.keras.Model):
         return final_model
 
     def _prepare_data_for_model(self, model: tf.keras.Model, data: tf.data.Dataset, split: str, args: Namespace):
-        def _map_method(example: Dict[str, KerasTensor]) -> Tuple[Tuple[KerasTensor], Tuple[KerasTensor]]:
+        def _map_method(example: Dict[str, tf.Tensor]) -> Tuple[Tuple[tf.Tensor], Tuple[tf.Tensor]]:
             in_features = tuple(example[name] for name in model.input_names)
             out_features = tf.stack([example[EyeTrackingFeatures.LABEL_DOT_X_CAM.value],
                                      example[EyeTrackingFeatures.LABEL_DOT_Y_CAM.value]], axis=0)
@@ -166,12 +165,12 @@ class EyeTrackerModel(tf.keras.Model):
 
         # optimizer
         sgd = SGD(learning_rate=1e-1, decay=5e-4, momentum=9e-1, nesterov=True)
-        adam = Adam(learning_rate=1e-3)
+        adam = Adam(learning_rate=1e-2)
 
         # compile model
         model.compile(optimizer=adam, loss='mse')
 
-        eye_tracker_data = EyeTrackerData(path_to_prepared_data=r'C:\Users\Tamar\Desktop\hw\project\prepared_data')
+        eye_tracker_data = EyeTrackerData(path_to_prepared_data=r'/mnt/2ef93ccf-c66e-4beb-95ba-24011e8fee18/TAMAR/prepared_data')
 
         train_data = self._prepare_data_for_model(model=model, data=eye_tracker_data.preprocess_data(set_mode='train'),
                                                   split='train', args=args)
@@ -183,6 +182,7 @@ class EyeTrackerModel(tf.keras.Model):
         model.fit(train_data,
                   epochs=args.max_epoch,
                   callbacks=[EarlyStopping(patience=patience),
+                             tf.keras.callbacks.ReduceLROnPlateau(factor=.5, patience=patience//2),
                              ModelCheckpoint("weights_big/weights.{epoch:03d}-{val_loss:.5f}_" + time_stamp + ".hdf5",
                                              save_best_only=True,
                                              verbose=1),

@@ -6,11 +6,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-train', action='store_true', help='train flag')
     parser.add_argument('-eval', action='store_true', help='evaluate flag')
-    parser.add_argument('-data', type=str, default='small', help='which dataset, small or big')
-    parser.add_argument('-max_epoch', '--max_epoch', type=int, default=100, help='max number of iterations (default 100)')
-    parser.add_argument('-batch_size', type=int, default=2, help='batch size (default 50)')
-    parser.add_argument('-patience', type=int, default=15, help='early stopping patience (default 10)')
-    parser.add_argument('-dev', type=str, default="-1", help='what cpu or gpu (recommended) use to train the model')
+    parser.add_argument('-max_epoch', '--max_epoch', type=int, default=10000, help='max number of epochs')
+    parser.add_argument('-batch_size', type=int, default=32, help='batch size')
+    parser.add_argument('-patience', type=int, default=20, help='early stopping patience')
     args = parser.parse_args()
 
     # image parameter
