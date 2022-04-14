@@ -6,6 +6,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-train', action='store_true', help='train flag')
     parser.add_argument('-eval', action='store_true', help='evaluate flag')
+    parser.add_argument('-predict', action='store_true', help='predict flag')
     parser.add_argument('-max_epoch', '--max_epoch', type=int, default=10000, help='max number of epochs')
     parser.add_argument('-batch_size', type=int, default=32, help='batch size')
     parser.add_argument('-patience', type=int, default=20, help='early stopping patience')
@@ -24,4 +25,9 @@ if __name__ == '__main__':
     # eval
     if args.eval:
         eye_tracker_model.evaluate_model(args=args,
-                                         path_to_model=r'C:\Users\Tamar\PycharmProjects\EyeTrackingProject\EyeTrackongProject\weights_big\weights.001-245.97839.hdf5')
+                                         path_to_model=r'/mnt/2ef93ccf-c66e-4beb-95ba-24011e8fee18/TAMAR/first_model_normal_batch_32/weights.106-4.05546_2021-06-27_16-13-33.hdf5')
+
+   # predict
+    if args.predict:
+        eye_tracker_model.predict_model(args=args,
+                                         path_to_model=r'/mnt/2ef93ccf-c66e-4beb-95ba-24011e8fee18/TAMAR/filtered_data/normal_batch_32/weights.026-9.65809_2022-03-27_11-19-57.hdf5')

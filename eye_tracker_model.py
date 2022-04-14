@@ -1,4 +1,5 @@
 import os
+import pandas as pd
 from argparse import Namespace
 from datetime import datetime
 from typing import Dict, Tuple
@@ -119,8 +120,8 @@ class EyeTrackerModel(tf.keras.Model):
                        kernel_regularizer=tf.keras.regularizers.l2(l=0.1))(fc_fg1)
         fc_fg2 = BatchNormalization()(fc_fg2)
 
-        # final dense layers
-        h = Concatenate()([fc_e1, fc_f2, fc_fg2])
+        # final dense layers // for running without eye_features remove fc_e1, for running without eye_features remove fc_f2, without face grid (bbox) remove fc_fg2
+        h = Concatenate()([fc_e1, fc_f2])
         fc1 = Dense(128, activation=EyeTrackingFeatures.RELU.value, kernel_regularizer=tf.keras.regularizers.l2(l=0.1))(
             h)
         fc1 = BatchNormalization()(fc1)
@@ -142,9 +143,10 @@ class EyeTrackerModel(tf.keras.Model):
 
         data = data.map(_map_method)
         if split == "train":
-            data = data.shuffle(buffer_size=100)  # TODO: increase
+            data = data.repeat()
+            data = data.shuffle(buffer_size=args.batch_size * 20)
         data = data.batch(batch_size=args.batch_size)
-        data = data.prefetch(100)
+        data = data.prefetch(10)
         return data
 
     def train_model(self, args):
@@ -165,7 +167,7 @@ class EyeTrackerModel(tf.keras.Model):
 
         # optimizer
         sgd = SGD(learning_rate=1e-1, decay=5e-4, momentum=9e-1, nesterov=True)
-        adam = Adam(learning_rate=1e-2)
+        adam = Adam(learning_rate=1e-3)
 
         # compile model
         model.compile(optimizer=adam, loss='mse')
@@ -188,13 +190,39 @@ class EyeTrackerModel(tf.keras.Model):
                                              verbose=1),
                              TensorBoard(f"weights_big/logs_{time_stamp}", update_freq=10)
                              ],
-                  validation_data=val_data)
+                  validation_data=val_data,
+                  steps_per_epoch=2000)
 
     def evaluate_model(self, path_to_model: str, args):
         model_to_eval = tf.keras.models.load_model(path_to_model)
         model_to_eval.summary()
-        eye_tracker_data = EyeTrackerData(path_to_prepared_data=r'C:\Users\Tamar\Desktop\hw\project\prepared_data')
+        eye_tracker_data = EyeTrackerData(path_to_prepared_data=r'/mnt/2ef93ccf-c66e-4beb-95ba-24011e8fee18/TAMAR/prepared_data')
         test_data = self._prepare_data_for_model(model=model_to_eval, data=eye_tracker_data.preprocess_data(set_mode='test'),
                                                   split='test', args=args)
         loss = model_to_eval.evaluate(test_data, verbose=2)
         print(f"loss:{loss}")
+
+    def predict_model(self, path_to_model: str, args) -> pd.DataFrame:
+        """
+        Func to make prediction according to subject, predictions will be stored in pandas data frame
+        :param path_to_model: path to model to get prediction from
+        :param args: args from main
+        :return: data frame holding predictions
+        """
+        model_to_eval = tf.keras.models.load_model(path_to_model)
+        model_to_eval.summary()
+        eye_tracker_data = EyeTrackerData(path_to_prepared_data=r'/mnt/2ef93ccf-c66e-4beb-95ba-24011e8fee18/TAMAR/prepared_data')
+        test_data = self._prepare_data_for_model(model=model_to_eval, data=eye_tracker_data.preprocess_data(set_mode='all'),
+                                                  split='test', args=args)
+        data_panda = eye_tracker_data.get_panda_data('all')
+        data_dict = data_panda.to_dict('list')
+        x_list = []
+        y_list = []
+        prediction_list = model_to_eval.predict(test_data)
+        for pred in prediction_list:
+            x_list.append(pred[0])
+            y_list.append(pred[1])
+        data_dict['x_predict'] = x_list
+        data_dict['y_predict'] = y_list
+        predict_panda = pd.DataFrame.from_dict(data_dict)
+        predict_panda.to_csv(r'/mnt/2ef93ccf-c66e-4beb-95ba-24011e8fee18/TAMAR/predicted_data.csv')

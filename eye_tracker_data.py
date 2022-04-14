@@ -48,9 +48,18 @@ class EyeTrackerData:
 
     def preprocess_data(self, set_mode: str) -> tf.data.Dataset:
         meta_data = pd.read_csv(os.path.join(self._path_to_prepared_data, 'metadata.csv'))
-        meta_data_panda = meta_data.loc[meta_data[EyeTrackingFeatures.DATASET.value] == set_mode]
-        meta_data_panda.fillna(value='', inplace=True)
+        if set_mode == 'all':
+            meta_data_panda = meta_data
+        else:
+            meta_data_panda = meta_data.loc[meta_data[EyeTrackingFeatures.DATASET.value] == set_mode]
+            meta_data_panda.fillna(value='', inplace=True)
         meta_dict = meta_data_panda.to_dict('list')
+        #meta_data_panda_Iphone = meta_data_panda[meta_data_panda[EyeTrackingFeatures.DEVICE_NAME.value].str.contains('iPad')]
+        #meta_data_panda_Iphone.fillna(value='', inplace=True)
+        #meta_dict = meta_data_panda_Iphone.to_dict('list')
+        # meta_data_panda.fillna(value='', inplace=True)
+        # meta_dict = meta_data_panda.to_dict('list')
+
         # for x in meta_dict[EyeTrackingFeatures.LABEL_FACE_GRID.value]:
         #     try:
         #         eval(x.replace("[ ", "[").replace("  ", " ").replace(" ", ","))
@@ -61,6 +70,13 @@ class EyeTrackerData:
         dataset = dataset.map(map_func=self._load_images)
 
         return dataset
+
+    def get_panda_data(self, set_mode: str) -> pd.DataFrame:
+        meta_data = pd.read_csv(os.path.join(r'/mnt/2ef93ccf-c66e-4beb-95ba-24011e8fee18/TAMAR/original_meta_data', 'metadata.csv'))
+        if set_mode == 'all':
+            return meta_data
+        meta_data_panda = meta_data.loc[meta_data[EyeTrackingFeatures.DATASET.value] == set_mode]
+        meta_data_panda.fillna(value='', inplace=True)
 
 
 
