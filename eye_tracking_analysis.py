@@ -182,10 +182,10 @@ class EyeTrackerAnalyser:
         meta_dict = all_models_df.to_dict('list')
         x_e = abs(np.subtract(meta_dict['label_dot_x_cam'], meta_dict['x_predict']))
         x_me = np.sum(x_e)/np.size(x_e)
-        x_var = np.var(x_e)
+        x_var = np.std(x_e)
         y_e = abs(np.subtract(meta_dict['label_dot_y_cam'], meta_dict['y_predict']))
         y_me = np.sum(y_e) / np.size(y_e)
-        y_var = np.var(y_e)
+        y_var = np.std(y_e)
         meta_dict['x_me'] = x_e
         meta_dict['y_me'] = y_e
         meta_dict['x_std'] = x_e
@@ -204,35 +204,32 @@ class EyeTrackerAnalyser:
         y_std_panda['model'] = [a[1] for a in y_std_panda.index]
         y_std_panda['device'] = [a[0] for a in y_std_panda.index]
         fig = px.scatter(x_error_panda, x="device", y="x_me", color="model", symbol="model")
-        fig.update_traces(marker_size=20)
-        fig.update_xaxes(title_font = {"size": 20},tickfont=dict(family='Rockwell', size=20))
-        fig.update_yaxes(title_font = {"size": 20},tickfont=dict(family='Rockwell', size=20))
+        fig.update_traces(marker_size=30,error_y=dict(type='data',array=x_std_panda['x_std'],visible=True))
+        fig.update_xaxes(tickfont=dict(family='Rockwell', size=30), title_font=dict(size=50, family='Rockwell'))
+        fig.update_yaxes(tickfont=dict(family='Rockwell', size=30), title_font=dict(size=50, family='Rockwell'))
         fig.show()
         fig = px.scatter(y_error_panda, x="device", y="y_me", color="model", symbol="model")
-        fig.update_xaxes(title_font = {"size": 20},tickfont=dict(family='Rockwell', size=20))
-        fig.update_yaxes(title_font = {"size": 20},tickfont=dict(family='Rockwell', size=20))
-        fig.update_traces(marker_size=20)
+        fig.update_xaxes(tickfont=dict(family='Rockwell', size=30), title_font=dict(size=50, family='Rockwell'))
+        fig.update_yaxes(tickfont=dict(family='Rockwell', size=30), title_font=dict(size=50, family='Rockwell'))
+        fig.update_traces(marker_size=30,error_y=dict(type='data',array=y_std_panda['y_std'],visible=True))
         fig.show()
-        fig = px.scatter(x_std_panda, x="device", y="x_std", color="model", symbol="model")
-        fig.update_traces(marker_size=20)
-        fig.update_xaxes(title_font = {"size": 20},tickfont=dict(family='Rockwell', size=20))
-        fig.update_yaxes(title_font = {"size": 20},tickfont=dict(family='Rockwell', size=20))
-        fig.show()
-        fig = px.scatter(y_std_panda, x="device", y="y_std", color="model", symbol="model")
-        fig.update_traces(marker_size=20)
-        fig.update_xaxes(title_font = {"size": 20},tickfont=dict(family='Rockwell', size=20))
-        fig.update_yaxes(title_font = {"size": 20},tickfont=dict(family='Rockwell', size=20))
-        fig.show()
+
 
     def calc_2d_hist(self, folder_path:str):
         all_models_df = pd.Series()
         for file in os.listdir(folder_path):
             info_panda = pd.read_csv(os.path.join(folder_path, file))
-            curr_df = info_panda[info_panda['dataset'] == 'test']
+            curr_df = info_panda[info_panda['dataset'] == 'train']
+            curr_df['error'] = ''
+
+            for i in curr_df.index:
+                error = np.sqrt(((abs(curr_df.at[i, 'x_predict'] - curr_df.at[i, 'label_dot_x_cam'])) * (abs(curr_df.at[i, 'x_predict'] - curr_df.at[i, 'label_dot_x_cam']))) + (
+                    (abs(curr_df.at[i, 'y_predict'] - curr_df.at[i, 'label_dot_y_cam'])) * (abs(curr_df.at[i, 'y_predict'] - curr_df.at[i, 'y_predict'] - curr_df.at[i, 'label_dot_y_cam']))))
+                curr_df.at[i, 'error'] = error
             curr_df['model'] = file.split('.')[0]
-            curr_df['z_error'] = curr_df.apply(lambda row: np.sqrt(
-                 (row.x_predict * row.x_predict) + (row.y_predict * row.y_predict)), axis=1)
-            fig = px.density_heatmap(curr_df, x="label_dot_x_cam", y="label_dot_y_cam", z="z_error", histfunc="avg", title=file.split('.')[0])
+            fig = px.density_heatmap(curr_df, x="label_dot_x_cam", y="label_dot_y_cam", title=file.split('.')[0])
+            fig.update_xaxes(tickfont=dict(family='Rockwell', size=50),title_font=dict(size=50, family='Rockwell'), dtick=5)
+            fig.update_yaxes(tickfont=dict(family='Rockwell', size=50),title_font=dict(size=50, family='Rockwell'),dtick=5)
             fig.show()
             #if all_models_df.empty:
                 #all_models_df = curr_df
@@ -259,20 +256,45 @@ class EyeTrackerAnalyser:
 
 
     def crate_filtered_prepared_data(self):
-        meta_data = pd.read_csv(os.path.join(self._path_to_data, 'predicted_data.csv'))
+        meta_data = pd.read_csv(os.path.join(self._path_to_data, '32_batch.csv'))
         meta_data['error'] = ''
 
         for i in meta_data.index:
             error = np.sqrt(((meta_data.at[i, 'x_predict'])*(meta_data.at[i, 'x_predict']))+((meta_data.at[i, 'y_predict'])*(meta_data.at[i, 'y_predict'])))
             meta_data.at[i, 'error'] = error
         std = meta_data['error'].std()
-        #filtered_df = meta_data[meta_data['error'] <= 3*std]
-        #final_df = filtered_df[filtered_df['dataset'] == 'train']
-        #save_df = final_df.drop(columns=['x_predict', 'y_predict'])
-        #save_df.to_csv(r'/mnt/2ef93ccf-c66e-4beb-95ba-24011e8fee18/TAMAR/filtered_data/metadata.csv')
+        filtered_df = meta_data[meta_data['error'] <= 3*std]
+        final_df = filtered_df[filtered_df['dataset'] == 'train']
+        save_df = final_df.drop(columns=['x_predict', 'y_predict'])
+        save_df.to_csv(r'/mnt/2ef93ccf-c66e-4beb-95ba-24011e8fee18/TAMAR/filtered_data/metadata.csv')
         bad_frames_panda = meta_data[meta_data['error'] > 3*std]
         bad_frames_panda.to_csv(r'/mnt/2ef93ccf-c66e-4beb-95ba-24011e8fee18/TAMAR/filtered_data/bad_frames.csv')
 
+
+    def get_bad_frames_percentage(self):
+        meta_data = pd.read_csv(os.path.join(self._path_to_data, '32_batch.csv'))
+        bad_frames_panda = pd.read_csv(r'/media/tamarh/DATA2/TAMAR/filtered_data/bad_frames.csv')
+        iphone_num = len(meta_data[meta_data['device_name'].str.contains('iPhone')])
+        ipad_num = len(meta_data[meta_data['device_name'].str.contains('iPad')])
+        bad_iphone = len(bad_frames_panda[bad_frames_panda['device_name'].str.contains('iPhone')])
+        bad_ipad = len(bad_frames_panda[bad_frames_panda['device_name'].str.contains('iPad')])
+        train = len(meta_data[meta_data['dataset'] == 'train'])
+        test = len(meta_data[meta_data['dataset'] == 'test'])
+        val = len(meta_data[meta_data['dataset'] == 'val'])
+        train_prec = (train/(train+ test+ val))*100
+        test_prec = (test/(train+ test+ val))*100
+        val_prec = (val/(train+ test+ val))*100
+        perc_of_filtered_iphone = (bad_iphone/iphone_num)*100
+        iphone_prec = (iphone_num/(iphone_num+ipad_num))*100
+        perc_of_filtered_ipad = (bad_ipad/ipad_num)*100
+        ipad_prec = (ipad_num/(iphone_num+ipad_num))*100
+        print(perc_of_filtered_iphone)
+        print(perc_of_filtered_ipad)
+        print(iphone_prec)
+        print(ipad_prec)
+        print(train_prec)
+        print(test_prec)
+        print(val_prec)
 
 
 
@@ -287,14 +309,17 @@ if __name__ == "__main__":
     # eye_tracker_analyser = EyeTrackerAnalyser(r'/mnt/2ef93ccf-c66e-4beb-95ba-24011e8fee18/TAMAR/prepared_data')
     # eye_tracker_analyser.analyse_data('test')
 
-    #eye_tracker_analyser = EyeTrackerAnalyser(r'/mnt/2ef93ccf-c66e-4beb-95ba-24011e8fee18/TAMAR/prepared_data')
-    #eye_tracker_analyser.calc_hist_by_device(r'/mnt/2ef93ccf-c66e-4beb-95ba-24011e8fee18/TAMAR/filtered_data/all_models')
+    # eye_tracker_analyser = EyeTrackerAnalyser(r'/mnt/2ef93ccf-c66e-4beb-95ba-24011e8fee18/TAMAR/prepared_data')
+    # eye_tracker_analyser.calc_hist_by_device(r'/media/tamarh/DATA2/TAMAR/inputs_models')
 
     eye_tracker_analyser = EyeTrackerAnalyser(r'/mnt/2ef93ccf-c66e-4beb-95ba-24011e8fee18/TAMAR/prepared_data')
-    eye_tracker_analyser.calc_2d_hist(r'/mnt/2ef93ccf-c66e-4beb-95ba-24011e8fee18/TAMAR/filtered_data/all_models')
+    eye_tracker_analyser.calc_2d_hist(r'/media/tamarh/DATA2/TAMAR/all+filterded_models/filtered')
 
-    # eye_tracker_analyser = EyeTrackerAnalyser(r'/mnt/2ef93ccf-c66e-4beb-95ba-24011e8fee18/TAMAR/prepared_data')
-    # eye_tracker_analyser.create_eye_crop_resolution_hist(r'/mnt/2ef93ccf-c66e-4beb-95ba-24011e8fee18/TAMAR/prepared_data')
+    # eye_tracker_analyser = EyeTrackerAnalyser(r'/media/tamarh/DATA2/TAMAR/prepared_data')
+    # eye_tracker_analyser.create_eye_crop_resolution_hist(r'/media/tamarh/DATA2/TAMAR/prepared_data')
 
-    #eye_tracker_analyser = EyeTrackerAnalyser(r'/mnt/2ef93ccf-c66e-4beb-95ba-24011e8fee18/TAMAR/first_model_normal_batch_32')
-    #eye_tracker_analyser.crate_filtered_prepared_data()
+    # eye_tracker_analyser = EyeTrackerAnalyser(r'/media/tamarh/DATA2/TAMAR/all_models')
+    # eye_tracker_analyser.crate_filtered_prepared_data()
+    #
+    # eye_tracker_analyser = EyeTrackerAnalyser(r'/media/tamarh/DATA2/TAMAR/all_models')
+    # eye_tracker_analyser.get_bad_frames_percentage()
