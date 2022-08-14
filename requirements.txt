@@ -1,0 +1,7 @@
+numpy
+scipy
+pandas
+scikit-learn
+tensorflow==2.2.0
+keras
+plotly
